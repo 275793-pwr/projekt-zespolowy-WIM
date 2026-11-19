@@ -1,0 +1,42 @@
+[
+ {
+  "question": "Ile punktów ECTS można zdobyć w jednym semestrze?",
+  "expected_page": 3
+ },
+ {
+  "question": "Ile kosztuje duplikat zgubionej legitymacji studenckiej?",
+  "expected_page": 2
+ },
+ {
+  "question": "Do kiedy trzeba złożyć wniosek o stypendium socjalne?",
+  "expected_page": 5
+ },
+ {
+  "question": "Na jak długo można dostać urlop dziekański?",
+  "expected_page": 4
+ },
+ {
+  "question": "Jaką średnią trzeba mieć, żeby wyjechać na Erasmusa?",
+  "expected_page": 4
+ },
+ {
+  "question": "Ile terminów poprawkowych przysługuje studentowi?",
+  "expected_page": 3
+ },
+ {
+  "question": "Z jakich składników liczy się ostateczny wynik studiów?",
+  "expected_page": 6
+ },
+ {
+  "question": "Ile nieusprawiedliwionych nieobecności można mieć w semestrze?",
+  "expected_page": 2
+ },
+ {
+  "question": "Jaka jest stolica Francji?",
+  "expected_page": null
+ },
+ {
+  "question": "Jak ugotować dobry żurek?",
+  "expected_page": null
+ }
+]
