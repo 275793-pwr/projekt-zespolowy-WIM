@@ -8,7 +8,7 @@ from llm import client as llm
 
 
 class Command(BaseCommand):
-    help = "Runs eval/questions.json against the real index (embeddings only) and suggests a similarity threshold."
+    help = "Uruchamia eval/questions.json na prawdziwym indeksie (tylko embeddingi) i sugeruje próg podobieństwa."
 
     def add_arguments(self, parser):
         parser.add_argument("--file", default="eval/questions.json")
@@ -22,9 +22,9 @@ class Command(BaseCommand):
             cid, sim = top[0]
             pages = [DocumentChunk.objects.get(chroma_id=c).page for c, _ in top]
             exp = q["expected_page"]
-            ok = exp is None or exp in pages  # expected page must be among top-5 sent to the model
+            ok = exp is None or exp in pages  # oczekiwana strona musi być w top 5 przekazanych modelowi
             (answerable if exp is not None else refused).append(sim)
-            self.stdout.write(f"{sim:.3f} top5_pages={pages} expected={exp} {'OK' if ok else 'MISSED'} | {q['question']}")
+            self.stdout.write(f"{sim:.3f} top5_strony={pages} oczekiwana={exp} {'OK' if ok else 'PUDŁO'} | {q['question']}")
         lo, hi = max(refused, default=0), min(answerable, default=1)
-        self.stdout.write(f"max similarity of refusals={lo:.3f}, min of answerable={hi:.3f}")
-        self.stdout.write("suggested threshold: " + (f"{(lo + hi) / 2:.2f}" if lo < hi else "NONE - classes overlap"))
+        self.stdout.write(f"maks. podobieństwo odmów={lo:.3f}, min. podobieństwo pytań z odpowiedzią={hi:.3f}")
+        self.stdout.write("sugerowany próg: " + (f"{(lo + hi) / 2:.2f}" if lo < hi else "BRAK - klasy się nakładają"))

@@ -21,7 +21,7 @@ def delete_ids(ids):
 
 
 def query(vector, k):
-    """Returns [(chroma_id, similarity)], best first. similarity = 1 - cosine distance."""
+    """Zwraca [(chroma_id, podobieństwo)], najlepsze pierwsze. podobieństwo = 1 - odległość kosinusowa."""
     col = collection()
     if col.count() == 0:
         return []

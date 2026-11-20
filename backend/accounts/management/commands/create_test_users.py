@@ -4,7 +4,7 @@ from accounts.models import Role, User
 
 
 class Command(BaseCommand):
-    help = "Creates one student and one corpus admin test account."
+    help = "Tworzy testowe konto studenta i administratora korpusu."
 
     def add_arguments(self, parser):
         parser.add_argument("--password", default="test1234")
@@ -15,4 +15,4 @@ class Command(BaseCommand):
             user.role = role
             user.set_password(opts["password"])
             user.save()
-            self.stdout.write(f"{email} ({role}) password={opts['password']}")
+            self.stdout.write(f"{email} ({role}) hasło={opts['password']}")

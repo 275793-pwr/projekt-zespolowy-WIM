@@ -1,4 +1,4 @@
-"""Single entry point for the LLM provider (chat + embeddings). Views never call the API directly."""
+"""Jedyny punkt dostępu do dostawcy LLM (czat + embeddingi). Widoki nigdy nie wołają API bezpośrednio."""
 import logging
 import time
 from dataclasses import dataclass
@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 
 class LLMError(Exception):
-    """Raised after retries are exhausted or on a non-retryable failure."""
+    """Zgłaszany po wyczerpaniu ponowień lub przy błędzie, którego nie warto powtarzać."""
 
 
 @dataclass
@@ -71,7 +71,7 @@ def chat(messages, model=None, max_tokens=1500):
 
 
 def embed(texts, model=None):
-    """Embeds texts in batches (not one request per text)."""
+    """Embeduje teksty partiami (a nie jedno żądanie na tekst)."""
     model = model or settings.EMBEDDING_MODEL
     vectors, tokens = [], 0
     size = settings.EMBED_BATCH_SIZE

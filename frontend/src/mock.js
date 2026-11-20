@@ -1,4 +1,4 @@
-// Mock backend in the contract format (section 8). Enabled with VITE_USE_MOCK=true.
+// Atrapa backendu w formacie kontraktu (sekcja 8). Włączana przez VITE_USE_MOCK=true.
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function mockRequest(path, opts = {}) {
   await wait(500);

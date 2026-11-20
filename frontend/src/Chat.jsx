@@ -33,7 +33,7 @@ export default function Chat() {
     <main className="chat">
       <section>
         <form onSubmit={ask}>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Zadaj pytanie o regulamin…" maxLength={2000} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Zadaj pytanie o dokumenty uczelniane…" maxLength={2000} />
           <button disabled={state.kind === "loading"}>Zapytaj</button>
         </form>
         {state.kind === "loading" && <div className="box loading" aria-busy="true">Szukam w dokumentach…</div>}

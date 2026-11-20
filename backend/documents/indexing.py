@@ -24,7 +24,7 @@ def _fail(doc, reason):
 
 
 def index_document(doc):
-    """Synchronous indexing; later it can be wrapped as a Celery task unchanged."""
+    """Indeksowanie synchroniczne; później można je opakować w zadanie Celery bez zmian."""
     doc.status = DocumentStatus.PROCESSING
     doc.failure_reason = ""
     doc.save(update_fields=["status", "failure_reason", "updated_at"])

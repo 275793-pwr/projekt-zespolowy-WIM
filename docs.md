@@ -1,4 +1,4 @@
-# Dokumentacja techniczna: Asystent regulaminów (RAG z cytatami) - Projekt Zespołowy "WIM"
+# Dokumentacja techniczna: Asystent RAG do dokumentów uczelnianych - Projekt Zespołowy "WIM"
 
 Dokument opisuje, jak system działa w środku: architekturę, współpracę usług, przepływ danych, model bazy i logikę RAG. Instrukcja uruchomienia jest w [README.md](README.md). Diagramy są w formacie Mermaid (renderują się m.in. na GitHubie i w VS Code).
 

@@ -1,4 +1,4 @@
-"""Generates eval/regulamin_studiow.pdf (a fictional regulation, 4 paragraphs per page). Needs reportlab + DejaVu."""
+"""Generuje eval/regulamin_studiow.pdf (fikcyjny regulamin, 4 paragrafy na stronę). Wymaga reportlab + DejaVu."""
 import sys
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle

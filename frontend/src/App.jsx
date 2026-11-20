@@ -13,7 +13,7 @@ export default function App() {
   if (!role) return <Login onLogin={(d) => { session.set(d); setRole(d.role); }} />;
   return (
     <div className="app">
-      <header><b>Asystent regulaminów</b><span>{role === "corpus_admin" ? "Administrator korpusu" : "Student"}</span>
+      <header><b>Asystent RAG do dokumentów uczelnianych</b><span>{role === "corpus_admin" ? "Administrator korpusu" : "Student"}</span>
         <button onClick={logout}>Wyloguj</button></header>
       {role === "corpus_admin" && <Upload />}
       <Chat />

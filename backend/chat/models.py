@@ -57,7 +57,7 @@ class Citation(models.Model):
 
 
 class MessageFeedback(models.Model):
-    """Prepared for later (thumbs up/down); not used by the MVP."""
+    """Przygotowane na później (kciuk w górę/w dół); nieużywane w MVP."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="feedback")

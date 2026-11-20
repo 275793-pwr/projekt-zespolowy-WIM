@@ -15,7 +15,7 @@ class UserManager(BaseUserManager):
 
     def create_user(self, email, password=None, **extra):
         if not email:
-            raise ValueError("email required")
+            raise ValueError("wymagany adres e-mail")
         user = self.model(email=self.normalize_email(email).lower(), **extra)
         user.set_password(password)
         user.save(using=self._db)
@@ -48,7 +48,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class OAuthAccount(models.Model):
-    """Prepared for Google OAuth (not used by the MVP)."""
+    """Przygotowane pod Google OAuth (nieużywane w MVP)."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="oauth_accounts")

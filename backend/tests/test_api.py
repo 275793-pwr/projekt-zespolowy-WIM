@@ -19,7 +19,7 @@ def upload(client, data, name="x.pdf"):
     return client.post("/api/documents/", {"file": SimpleUploadedFile(name, data, "application/pdf")}, format="multipart")
 
 
-# --- auth / roles ---
+# --- uwierzytelnianie / role ---
 def test_login_and_me(student):
     from rest_framework.test import APIClient
 
@@ -68,7 +68,7 @@ def test_document_detail_admin_only(admin_client, student_client, indexed_doc):
     assert student_client.get(f"/api/documents/{indexed_doc}/").status_code == 403
 
 
-# --- chunking ---
+# --- dzielenie na fragmenty ---
 def test_every_chunk_has_page_index_and_stays_within_page(indexed_doc):
     pages = [" ".join(p.split()) for p in extract_pages(SAMPLE_PDF)]
     chunks = list(DocumentChunk.objects.order_by("chunk_index"))
@@ -91,7 +91,7 @@ def test_chunker_unit_boundaries_and_overlap():
     assert out[0]["chapter"] == "§ 1" and out[-1]["chapter"] == "§ 1"  # carried across the page
 
 
-# --- ask ---
+# --- pytania ---
 def ask(client, q="Ile punktów ECTS można zdobyć w semestrze?"):
     r = client.post("/api/ask/", {"question": q}, format="json")
     assert r.status_code == 200

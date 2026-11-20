@@ -6,7 +6,7 @@ CHAPTER_RE = re.compile(r"^[ \t]*(§\s*\d+[a-z]?)", re.MULTILINE)
 
 
 def _split_page(text, lo, hi, overlap):
-    """Yields (start, end) spans of `text`, never beyond the page."""
+    """Zwraca zakresy (start, koniec) w `text`, nigdy poza stroną."""
     n = len(text)
     start = 0
     while start < n:
@@ -26,7 +26,7 @@ def _split_page(text, lo, hi, overlap):
 
 
 def chunk_pages(pages):
-    """pages: list of page texts (index 0 = page 1). Returns list of dicts with page, chunk_index, chapter, text."""
+    """pages: lista tekstów stron (indeks 0 = strona 1). Zwraca listę słowników z polami page, chunk_index, chapter, text."""
     lo, hi = settings.CHUNK_SIZE
     overlap = settings.CHUNK_OVERLAP
     chunks, carried = [], ""

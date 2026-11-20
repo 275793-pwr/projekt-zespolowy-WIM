@@ -40,7 +40,7 @@ def build_messages(question, hits):
 
 
 def retrieve(question):
-    """Returns (hits above threshold, query embedding tokens). hits: [{chunk, score}]."""
+    """Zwraca trafienia powyżej progu: [{chunk, score}]."""
     emb = llm.embed([question])
     found = vectorstore.query(emb.vectors[0], settings.TOP_K)
     found = [(cid, s) for cid, s in found if s >= settings.SIMILARITY_THRESHOLD]
@@ -56,7 +56,7 @@ def _sources(citations):
 
 
 def _save_assistant(conv, content, status, hits, log_kwargs):
-    """Assistant message + citations + log in ONE transaction: no answer without sources or vice versa."""
+    """Wiadomość asystenta + cytaty + log w JEDNEJ transakcji: nie ma odpowiedzi bez źródeł ani odwrotnie."""
     with transaction.atomic():
         msg = Message.objects.create(conversation=conv, role=MessageRole.ASSISTANT, content=content, status=status)
         cites = [
