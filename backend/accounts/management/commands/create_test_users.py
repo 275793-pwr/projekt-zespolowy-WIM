@@ -8,8 +8,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--password", default="test1234")
+        parser.add_argument("--if-empty", action="store_true", help="Nic nie rób, jeśli w bazie są już użytkownicy.")
 
     def handle(self, *args, **opts):
+        if opts["if_empty"] and User.objects.exists():
+            return
         for email, role in [("student@example.com", Role.STUDENT), ("admin@example.com", Role.CORPUS_ADMIN)]:
             user, _ = User.objects.get_or_create(email=email, defaults={"role": role})
             user.role = role

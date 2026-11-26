@@ -6,6 +6,7 @@ export async function mockRequest(path, opts = {}) {
   if (path === "/auth/login/") return { access: "mock", refresh: "mock", role: body.email?.startsWith("admin") ? "corpus_admin" : "student" };
   if (path === "/me/") return { email: "mock@example.com", role: localStorage.getItem("role") || "student" };
   if (path === "/documents/" && opts.method === "POST") return { id: "mock-1", title: "Regulamin studiów", status: "ready" };
+  if (path.startsWith("/documents/") && opts.method === "DELETE") return null;
   if (path === "/documents/") return [];
   if (path === "/ask/") {
     const q = (body.question || "").toLowerCase();

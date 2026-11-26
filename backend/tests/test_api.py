@@ -68,6 +68,24 @@ def test_document_detail_admin_only(admin_client, student_client, indexed_doc):
     assert student_client.get(f"/api/documents/{indexed_doc}/").status_code == 403
 
 
+def test_delete_document_admin_only_and_cleans_up(admin_client, student_client, indexed_doc):
+    from documents import vectorstore
+
+    doc = Document.objects.get(id=indexed_doc)
+    path = doc.file.path
+    assert student_client.delete(f"/api/documents/{indexed_doc}/").status_code == 403
+    assert Document.objects.filter(id=indexed_doc).exists()
+    before = vectorstore.collection().count()
+    assert before > 0
+    assert admin_client.delete(f"/api/documents/{indexed_doc}/").status_code == 204
+    assert not Document.objects.filter(id=indexed_doc).exists()
+    assert DocumentChunk.objects.count() == 0
+    assert vectorstore.collection().count() == 0
+    import os
+    assert not os.path.exists(path)
+    assert admin_client.get(f"/api/documents/{indexed_doc}/").status_code == 404
+
+
 # --- dzielenie na fragmenty ---
 def test_every_chunk_has_page_index_and_stays_within_page(indexed_doc):
     pages = [" ".join(p.split()) for p in extract_pages(SAMPLE_PDF)]

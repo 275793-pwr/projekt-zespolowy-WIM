@@ -8,6 +8,11 @@ export default function Upload() {
   const [title, setTitle] = useState(""); const [msg, setMsg] = useState(""); const [busy, setBusy] = useState(false);
   const load = () => api("/documents/").then(setDocs).catch(() => {});
   useEffect(() => { load(); }, []);
+  const remove = async (d) => {
+    if (!window.confirm(`Usunąć dokument „${d.title}”? Tej operacji nie można cofnąć.`)) return;
+    try { await api(`/documents/${d.id}/`, { method: "DELETE" }); setMsg(`Usunięto: ${d.title}`); load(); }
+    catch (x) { setMsg(x.message); }
+  };
   const submit = async (e) => {
     e.preventDefault(); if (!file) return;
     setBusy(true); setMsg("");
@@ -27,7 +32,7 @@ export default function Upload() {
         <button disabled={busy || !file}>{busy ? "Indeksowanie…" : "Wgraj"}</button>
       </form>
       {msg && <p>{msg}</p>}
-      <ul>{docs.map((d) => <li key={d.id}>{d.title} — {LABEL[d.status]}{d.status === "ready" && ` (${d.page_count} str., ${d.chunk_count} fragm.)`}{d.failure_reason && ` — ${d.failure_reason}`}</li>)}</ul>
+      <ul>{docs.map((d) => <li key={d.id}>{d.title} — {LABEL[d.status]}{d.status === "ready" && ` (${d.page_count} str., ${d.chunk_count} fragm.)`}{d.failure_reason && ` — ${d.failure_reason}`} <button className="danger" onClick={() => remove(d)}>Usuń</button></li>)}</ul>
     </section>
   );
 }

@@ -18,11 +18,18 @@ Django + DRF, PostgreSQL, Chroma (baza wektorowa), React (Vite), nginx, OpenRout
    ```
    docker compose up -d --build
    ```
-3. Utwórz konta testowe (student i administrator korpusu):
-   ```
-   docker compose exec backend python manage.py create_test_users
-   ```
-4. Otwórz aplikację: http://localhost:3000
+3. Otwórz aplikację: http://localhost:3000
+
+### Domyślne dane logowania
+
+Tworzone automatycznie przy pierwszym uruchomieniu (gdy baza nie ma jeszcze użytkowników). Ręcznie: `docker compose exec backend python manage.py create_test_users [--password ...]`.
+
+| Rola | E-mail | Hasło |
+|---|---|---|
+| Student | `student@example.com` | `test1234` |
+| Administrator korpusu | `admin@example.com` | `test1234` |
+
+To konta wyłącznie testowe, nie używaj ich na środowisku produkcyjnym.
 
 ## Testy
 

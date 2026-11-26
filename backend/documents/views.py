@@ -1,8 +1,9 @@
-from rest_framework.generics import RetrieveAPIView
+from rest_framework.generics import RetrieveDestroyAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsCorpusAdmin
+from . import vectorstore
 from .indexing import index_document
 from .models import Document
 from .serializers import DocumentCreateSerializer, DocumentSerializer
@@ -27,7 +28,15 @@ class DocumentListCreateView(APIView):
         )
 
 
-class DocumentDetailView(RetrieveAPIView):
+class DocumentDetailView(RetrieveDestroyAPIView):
     permission_classes = [IsCorpusAdmin]
     queryset = Document.objects.all()
     serializer_class = DocumentSerializer
+
+    def perform_destroy(self, instance):
+        """Usuwa dokument razem z fragmentami, wektorami w Chroma i plikiem PDF."""
+        vectorstore.delete_ids(list(instance.chunks.values_list("chroma_id", flat=True)))
+        file = instance.file
+        instance.delete()  # fragmenty i cytaty znikają kaskadowo
+        if file:
+            file.delete(save=False)
