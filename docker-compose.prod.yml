@@ -1,0 +1,23 @@
+# Override dla serwera produkcyjnego. Użycie:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# (skrypt deploy/deploy.sh robi to za Ciebie)
+#
+# Różnice względem dev:
+#  - brak bind-mountu ./backend:/app (kod jest wbudowany w obraz)
+#  - port 8000 (API) NIE jest publikowany - ruch idzie wyłącznie przez nginx na porcie 3000
+#  - restart: unless-stopped, żeby usługi wstawały po restarcie serwera
+
+services:
+  db:
+    restart: unless-stopped
+
+  backend:
+    restart: unless-stopped
+    volumes: !override
+      - appdata:/data
+    ports: !reset []
+
+  frontend:
+    restart: unless-stopped
+    ports: !override
+      - "${HTTP_PORT:-80}:80"

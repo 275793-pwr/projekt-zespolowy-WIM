@@ -1,0 +1,71 @@
+name: Deploy
+
+# Każdy push na main wdraża aplikację. Job wykonuje się na runnerze zainstalowanym
+# na serwerze (self-hosted): runner sam łączy się z GitHubem, więc serwer nie potrzebuje
+# publicznego IP ani otwartych portów.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Tylko jedno wdrożenie naraz; nowsze czekają zamiast się nakładać.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Domyślne etykiety runnera: self-hosted, Linux, X64 (nie trzeba dodawać własnych)
+    runs-on: [self-hosted, Linux]
+    timeout-minutes: 30
+    steps:
+      # Generuje .env na serwerze. Sekrety GitHuba: API_KEY i EMBEDDING_MODEL.
+      # DJANGO_SECRET_KEY i POSTGRES_PASSWORD są zachowywane z poprzedniego .env na serwerze
+      # (albo generowane losowo przy pierwszym wdrożeniu) - zmiana hasła bazy po jej utworzeniu
+      # rozjechałaby się z istniejącym wolumenem pgdata.
+      - name: Zapis .env
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          API_KEY: ${{ secrets.API_KEY }}
+          EMBEDDING_MODEL: ${{ secrets.EMBEDDING_MODEL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          cd "$DEPLOY_PATH"
+
+          # Odczyt wartości z istniejącego .env (jeśli jest)
+          existing() {
+            [ -f .env ] && grep -E "^$1=" .env | tail -n1 | cut -d= -f2- || true
+          }
+          SECRET_KEY="$(existing DJANGO_SECRET_KEY)"
+          [ -n "$SECRET_KEY" ] || SECRET_KEY="$(openssl rand -hex 32)"
+          DB_PASSWORD="$(existing POSTGRES_PASSWORD)"
+          [ -n "$DB_PASSWORD" ] || DB_PASSWORD="$(openssl rand -hex 24)"
+
+          {
+            echo "# Generowane przez workflow deploy.yml"
+            echo "API_KEY=$API_KEY"
+            echo "LLM_BASE_URL=https://openrouter.ai/api/v1"
+            echo "CHAT_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free"
+            echo "EMBEDDING_MODEL=$EMBEDDING_MODEL"
+            echo "SIMILARITY_THRESHOLD=0.23"
+            echo "LLM_TIMEOUT=60"
+            echo "LLM_RETRY_BACKOFF=2"
+            echo "POSTGRES_DB=zesp"
+            echo "POSTGRES_USER=zesp"
+            echo "POSTGRES_PASSWORD=$DB_PASSWORD"
+            echo "POSTGRES_HOST=db"
+            echo "DJANGO_SECRET_KEY=$SECRET_KEY"
+            echo "DJANGO_DEBUG=0"
+            echo "DJANGO_ALLOWED_HOSTS=*"
+            echo "MAX_PDF_MB=20"
+          } > .env.new
+          mv .env.new .env
+
+      # Kod jest już na serwerze w DEPLOY_PATH; deploy.sh sam robi git pull i przebudowuje stack.
+      - name: Wdrożenie
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          cd "$DEPLOY_PATH"
+          ./deploy/deploy.sh
