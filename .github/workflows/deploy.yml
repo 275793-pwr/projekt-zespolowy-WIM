@@ -19,10 +19,24 @@ jobs:
     runs-on: [self-hosted, Linux]
     timeout-minutes: 30
     steps:
-      # Generuje .env na serwerze. Sekrety GitHuba: API_KEY i EMBEDDING_MODEL.
-      # DJANGO_SECRET_KEY i POSTGRES_PASSWORD są zachowywane z poprzedniego .env na serwerze
-      # (albo generowane losowo przy pierwszym wdrożeniu) - zmiana hasła bazy po jej utworzeniu
-      # rozjechałaby się z istniejącym wolumenem pgdata.
+      # 1. Kod pobiera runner z GitHuba (do katalogu roboczego joba).
+      - name: Pobranie kodu
+        uses: actions/checkout@v4
+
+      # 2. Kopiuje kod do trwałego katalogu DEPLOY_PATH. Plik .env leży w DEPLOY_PATH,
+      #    więc kopiowanie go nie nadpisuje (w repo go nie ma).
+      - name: Synchronizacja kodu do DEPLOY_PATH
+        env:
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$DEPLOY_PATH"
+          cp -a "$GITHUB_WORKSPACE"/. "$DEPLOY_PATH"/
+
+      # 3. Generuje .env w DEPLOY_PATH. Sekrety GitHuba: API_KEY i EMBEDDING_MODEL.
+      #    DJANGO_SECRET_KEY i POSTGRES_PASSWORD są zachowywane z poprzedniego .env
+      #    (albo losowane przy pierwszym wdrożeniu) - zmiana hasła bazy po jej utworzeniu
+      #    rozjechałaby się z istniejącym wolumenem pgdata.
       - name: Zapis .env
         env:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
@@ -62,10 +76,10 @@ jobs:
           } > .env.new
           mv .env.new .env
 
-      # Kod jest już na serwerze w DEPLOY_PATH; deploy.sh sam robi git pull i przebudowuje stack.
+      # 4. Build i uruchomienie stacka z DEPLOY_PATH (bez git pull - kod już jest skopiowany).
       - name: Wdrożenie
         env:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
         run: |
           cd "$DEPLOY_PATH"
-          ./deploy/deploy.sh
+          ./deploy/deploy.sh --no-pull

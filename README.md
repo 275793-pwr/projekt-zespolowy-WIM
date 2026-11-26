@@ -85,13 +85,13 @@ Workflow `.github/workflows/deploy.yml` wdraża każdy push na `main` (albo ręc
 
 Jednorazowa konfiguracja:
 
-1. **Repo na serwerze** – sklonuj repo (`git clone <adres> ~/wim`). Serwer musi mieć dostęp do GitHuba, bo `deploy.sh` robi `git pull`. Dla prywatnego repo użyj HTTPS z tokenem albo deploy key. Plik `.env` **nie musi** być tworzony ręcznie – generuje go workflow z sekretów (patrz niżej).
+1. **Katalog wdrożeniowy** – nie musisz nic klonować. Workflow sam pobiera kod przez runnera i kopiuje go do katalogu `DEPLOY_PATH` (tworzy go, jeśli nie istnieje). Plik `.env` też generuje workflow (patrz niżej). Nie uruchamiaj ręcznie `deploy.sh` ani `git pull` na serwerze.
 2. **Zainstaluj runnera** – w GitHub: Settings → Actions → Runners → New self-hosted runner (Linux). Postępuj zgodnie z podanymi komendami na serwerze (etykiety domyślne wystarczą). Potem zainstaluj go jako usługę:
    ```
    sudo ./svc.sh install && sudo ./svc.sh start
    ```
 3. **Uprawnienia do Dockera** – użytkownik, na którym działa runner, musi być w grupie `docker` (`sudo usermod -aG docker <user>`).
-4. **Zmienna repo `DEPLOY_PATH`** – w GitHub: Settings → Secrets and variables → Actions → Variables → New repository variable. Wartość to ścieżka do repo na serwerze, np. `/home/deploy/wim` (sprawdź: `cd ~/wim && pwd`).
+4. **Zmienna repo `DEPLOY_PATH`** – w GitHub: Settings → Secrets and variables → Actions → Variables → New repository variable. Wartość to trwały katalog na serwerze, np. `/home/deploy/wim` (nie musi istnieć wcześniej).
 5. **Sekrety i zmienne konfiguracyjne** – Settings → Secrets and variables → Actions:
    - Sekrety (Secrets): `API_KEY` (klucz OpenRouter), `EMBEDDING_MODEL` (nazwa modelu embeddingów).
 
