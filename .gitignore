@@ -3,6 +3,5 @@ __pycache__/
 *.pyc
 node_modules/
 dist/
-.pytest_cache/
 backend/media/
 backend/chroma/

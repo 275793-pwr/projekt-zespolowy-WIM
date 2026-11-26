@@ -1,8 +1,12 @@
+import logging
+
 from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from . import rag
+
+logger = logging.getLogger(__name__)
 
 
 class AskSerializer(serializers.Serializer):
@@ -12,13 +16,15 @@ class AskSerializer(serializers.Serializer):
 
 class AskView(APIView):
     def post(self, request):
-        ser = AskSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
+        serializer = AskSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         try:
-            data = rag.ask(request.user, ser.validated_data["question"].strip(), ser.validated_data.get("conversation_id"))
-        except Exception:  # never a 500 for the student
-            import logging
-
-            logging.getLogger(__name__).exception("ask failed")
+            data = rag.ask(
+                request.user,
+                serializer.validated_data["question"],
+                serializer.validated_data.get("conversation_id"),
+            )
+        except Exception:  # student nigdy nie dostaje 500
+            logger.exception("ask failed")
             data = {"message_id": None, "status": "error", "answer": rag.ERROR_TEXT, "sources": []}
         return Response(data)

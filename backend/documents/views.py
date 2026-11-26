@@ -1,10 +1,11 @@
+from rest_framework import status
 from rest_framework.generics import RetrieveDestroyAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsCorpusAdmin
-from . import vectorstore
-from .indexing import index_document
+
+from .indexing import delete_document, index_document
 from .models import Document
 from .serializers import DocumentCreateSerializer, DocumentSerializer
 
@@ -16,15 +17,20 @@ class DocumentListCreateView(APIView):
         return Response(DocumentSerializer(Document.objects.all(), many=True).data)
 
     def post(self, request):
-        ser = DocumentCreateSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
-        f = ser.validated_data["file"]
-        title = ser.validated_data.get("title") or f.name.rsplit(".", 1)[0]
-        doc = Document.objects.create(title=title, file=f, uploaded_by=request.user)
-        index_document(doc)
+        serializer = DocumentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file = serializer.validated_data["file"]
+        title = serializer.validated_data.get("title") or file.name.rsplit(".", 1)[0]
+        document = Document.objects.create(title=title, file=file, uploaded_by=request.user)
+        index_document(document)
         return Response(
-            {"id": str(doc.id), "title": doc.title, "status": doc.status, "failure_reason": doc.failure_reason},
-            status=201,
+            {
+                "id": str(document.id),
+                "title": document.title,
+                "status": document.status,
+                "failure_reason": document.failure_reason,
+            },
+            status=status.HTTP_201_CREATED,
         )
 
 
@@ -34,9 +40,4 @@ class DocumentDetailView(RetrieveDestroyAPIView):
     serializer_class = DocumentSerializer
 
     def perform_destroy(self, instance):
-        """Usuwa dokument razem z fragmentami, wektorami w Chroma i plikiem PDF."""
-        vectorstore.delete_ids(list(instance.chunks.values_list("chroma_id", flat=True)))
-        file = instance.file
-        instance.delete()  # fragmenty i cytaty znikają kaskadowo
-        if file:
-            file.delete(save=False)
+        delete_document(instance)

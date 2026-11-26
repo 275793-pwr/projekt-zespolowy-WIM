@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import requests
 from django.conf import settings
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class LLMError(Exception):
@@ -21,70 +21,74 @@ class ChatResult:
     model: str
 
 
-@dataclass
-class EmbedResult:
-    vectors: list
-    tokens: int
-    model: str
+class _RetryableError(Exception):
+    """Błąd przejściowy: timeout, brak połączenia, 429, 5xx lub niepoprawny JSON."""
+
+
+def _post_once(url, payload, headers):
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=settings.LLM_TIMEOUT)
+    except (requests.Timeout, requests.ConnectionError) as error:
+        raise _RetryableError(type(error).__name__) from error
+    if response.status_code == 200:
+        try:
+            return response.json()
+        except ValueError as error:
+            raise _RetryableError("invalid JSON from provider") from error
+    if response.status_code == 429 or response.status_code >= 500:
+        raise _RetryableError(f"HTTP {response.status_code}")
+    raise LLMError(f"HTTP {response.status_code}: {response.text[:200]}")
 
 
 def _post(path, payload):
     url = settings.LLM_BASE_URL.rstrip("/") + path
     headers = {"Authorization": f"Bearer {settings.LLM_API_KEY}", "Content-Type": "application/json"}
     attempts = settings.LLM_RETRIES + 1
-    last = "unknown"
-    for attempt in range(attempts):
-        retryable = True
-        try:
-            resp = requests.post(url, json=payload, headers=headers, timeout=settings.LLM_TIMEOUT)
-            if resp.status_code == 200:
-                try:
-                    return resp.json()
-                except ValueError:
-                    last = "invalid JSON from provider"
-            elif resp.status_code == 429 or resp.status_code >= 500:
-                last = f"HTTP {resp.status_code}"
-            else:
-                retryable = False
-                last = f"HTTP {resp.status_code}: {resp.text[:200]}"
-        except (requests.Timeout, requests.ConnectionError) as e:
-            last = f"{type(e).__name__}"
-        if not retryable:
-            break
-        if attempt < attempts - 1:
-            time.sleep(settings.LLM_RETRY_BACKOFF * (attempt + 1))
-    log.warning("LLM call failed: %s", last)
-    raise LLMError(last)
+    try:
+        for attempt in range(1, attempts + 1):
+            try:
+                return _post_once(url, payload, headers)
+            except _RetryableError as error:
+                if attempt == attempts:
+                    raise LLMError(str(error)) from error
+                time.sleep(settings.LLM_RETRY_BACKOFF * attempt)
+    except LLMError as error:
+        logger.warning("LLM call failed: %s", error)
+        raise
 
 
-def chat(messages, model=None, max_tokens=1500):
-    model = model or settings.CHAT_MODEL
-    data = _post("/chat/completions", {"model": model, "messages": messages, "max_tokens": max_tokens, "temperature": 0.1})
+def chat(messages):
+    data = _post(
+        "/chat/completions",
+        {"model": settings.CHAT_MODEL, "messages": messages, "max_tokens": 1500, "temperature": 0.1},
+    )
     try:
         text = (data["choices"][0]["message"].get("content") or "").strip()
-    except (KeyError, IndexError, TypeError, AttributeError):
-        raise LLMError("unexpected response shape")
+    except (KeyError, IndexError, TypeError, AttributeError) as error:
+        raise LLMError("unexpected response shape") from error
     if not text:
         raise LLMError("empty answer")
     usage = data.get("usage") or {}
-    return ChatResult(text, usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0), data.get("model", model))
+    return ChatResult(
+        text=text,
+        tokens_in=usage.get("prompt_tokens", 0),
+        tokens_out=usage.get("completion_tokens", 0),
+        model=data.get("model", settings.CHAT_MODEL),
+    )
 
 
-def embed(texts, model=None):
-    """Embeduje teksty partiami (a nie jedno żądanie na tekst)."""
-    model = model or settings.EMBEDDING_MODEL
-    vectors, tokens = [], 0
-    size = settings.EMBED_BATCH_SIZE
-    for i in range(0, len(texts), size):
-        batch = texts[i : i + size]
-        data = _post("/embeddings", {"model": model, "input": batch})
+def embed(texts):
+    """Zwraca wektory tekstów; wysyła je partiami, a nie jedno żądanie na tekst."""
+    vectors = []
+    for offset in range(0, len(texts), settings.EMBED_BATCH_SIZE):
+        batch = texts[offset : offset + settings.EMBED_BATCH_SIZE]
+        data = _post("/embeddings", {"model": settings.EMBEDDING_MODEL, "input": batch})
         try:
-            rows = sorted(data["data"], key=lambda r: r.get("index", 0))
-            vecs = [r["embedding"] for r in rows]
-        except (KeyError, TypeError):
-            raise LLMError("unexpected embeddings response")
-        if len(vecs) != len(batch):
+            rows = sorted(data["data"], key=lambda row: row.get("index", 0))
+            batch_vectors = [row["embedding"] for row in rows]
+        except (KeyError, TypeError) as error:
+            raise LLMError("unexpected embeddings response") from error
+        if len(batch_vectors) != len(batch):
             raise LLMError("embeddings count mismatch")
-        vectors.extend(vecs)
-        tokens += (data.get("usage") or {}).get("prompt_tokens", 0)
-    return EmbedResult(vectors, tokens, model)
+        vectors.extend(batch_vectors)
+    return vectors

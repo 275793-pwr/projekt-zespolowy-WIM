@@ -1,18 +1,17 @@
+"""Dostęp do wbudowanej bazy wektorowej Chroma."""
+from functools import cache
+
 import chromadb
 from django.conf import settings
 
-_clients = {}
+
+@cache
+def _client(path):
+    return chromadb.PersistentClient(path=path)
 
 
 def collection():
-    path = settings.CHROMA_PATH
-    if path not in _clients:
-        _clients[path] = chromadb.PersistentClient(path=path)
-    return _clients[path].get_or_create_collection("chunks", metadata={"hnsw:space": "cosine"})
-
-
-def add(ids, vectors, metadatas, documents):
-    collection().add(ids=ids, embeddings=vectors, metadatas=metadatas, documents=documents)
+    return _client(settings.CHROMA_PATH).get_or_create_collection("chunks", metadata={"hnsw:space": "cosine"})
 
 
 def delete_ids(ids):
@@ -22,8 +21,9 @@ def delete_ids(ids):
 
 def query(vector, k):
     """Zwraca [(chroma_id, podobieństwo)], najlepsze pierwsze. podobieństwo = 1 - odległość kosinusowa."""
-    col = collection()
-    if col.count() == 0:
+    chunks = collection()
+    count = chunks.count()
+    if count == 0:
         return []
-    res = col.query(query_embeddings=[vector], n_results=min(k, col.count()))
-    return [(i, 1.0 - d) for i, d in zip(res["ids"][0], res["distances"][0])]
+    result = chunks.query(query_embeddings=[vector], n_results=min(k, count))
+    return [(chroma_id, 1.0 - distance) for chroma_id, distance in zip(result["ids"][0], result["distances"][0])]

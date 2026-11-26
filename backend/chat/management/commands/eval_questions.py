@@ -1,6 +1,7 @@
 import json
 
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
 
 from documents import vectorstore
 from documents.models import DocumentChunk
@@ -13,18 +14,29 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--file", default="eval/questions.json")
 
-    def handle(self, *a, **o):
-        qs = json.load(open(o["file"], encoding="utf-8"))
-        answerable, refused = [], []
-        for q in qs:
-            v = llm.embed([q["question"]]).vectors[0]
-            top = vectorstore.query(v, 5)
-            cid, sim = top[0]
-            pages = [DocumentChunk.objects.get(chroma_id=c).page for c, _ in top]
-            exp = q["expected_page"]
-            ok = exp is None or exp in pages  # oczekiwana strona musi być w top 5 przekazanych modelowi
-            (answerable if exp is not None else refused).append(sim)
-            self.stdout.write(f"{sim:.3f} top5_strony={pages} oczekiwana={exp} {'OK' if ok else 'PUDŁO'} | {q['question']}")
-        lo, hi = max(refused, default=0), min(answerable, default=1)
-        self.stdout.write(f"maks. podobieństwo odmów={lo:.3f}, min. podobieństwo pytań z odpowiedzią={hi:.3f}")
-        self.stdout.write("sugerowany próg: " + (f"{(lo + hi) / 2:.2f}" if lo < hi else "BRAK - klasy się nakładają"))
+    def handle(self, *args, **options):
+        with open(options["file"], encoding="utf-8") as file:
+            questions = json.load(file)
+
+        answerable_scores, refused_scores = [], []
+        for item in questions:
+            embedding = llm.embed([item["question"]])[0]
+            matches = vectorstore.query(embedding, settings.TOP_K)
+            if not matches:
+                raise CommandError("Indeks jest pusty - najpierw wgraj dokument.")
+            best_score = matches[0][1]
+            pages = [DocumentChunk.objects.get(chroma_id=chroma_id).page for chroma_id, _ in matches]
+            expected = item["expected_page"]  # None = oczekiwana odmowa
+            # oczekiwana strona musi być wśród fragmentów przekazywanych modelowi
+            verdict = "OK" if expected is None or expected in pages else "PUDŁO"
+            (refused_scores if expected is None else answerable_scores).append(best_score)
+            self.stdout.write(
+                f"{best_score:.3f} top{settings.TOP_K}_strony={pages} oczekiwana={expected} "
+                f"{verdict} | {item['question']}"
+            )
+
+        low = max(refused_scores, default=0)
+        high = min(answerable_scores, default=1)
+        suggestion = f"{(low + high) / 2:.2f}" if low < high else "BRAK - klasy się nakładają"
+        self.stdout.write(f"maks. podobieństwo odmów={low:.3f}, min. podobieństwo pytań z odpowiedzią={high:.3f}")
+        self.stdout.write(f"sugerowany próg: {suggestion}")

@@ -1,3 +1,4 @@
+"""Logika RAG: wyszukiwanie fragmentów, budowa promptu i zapis odpowiedzi z cytatami."""
 import html
 import time
 
@@ -7,11 +8,13 @@ from django.db import transaction
 from documents import vectorstore
 from documents.models import DocumentChunk
 from llm import client as llm
+
 from .models import AnswerStatus, Citation, Conversation, Message, MessageRole, QueryLog, QueryStatus
 
 REFUSAL_TEXT = "Nie znalazłem tego w dokumentach."
 ERROR_TEXT = "Usługa odpowiedzi jest chwilowo niedostępna. Spróbuj ponownie za chwilę."
-EXCERPT_LEN = 300
+EXCERPT_LENGTH = 300
+TITLE_LENGTH = 80
 
 SYSTEM_PROMPT = (
     "Jesteś asystentem studenta odpowiadającym na pytania o regulaminy uczelni. "
@@ -24,88 +27,104 @@ SYSTEM_PROMPT = (
 )
 
 
-def build_messages(question, hits):
-    blocks = []
-    for i, h in enumerate(hits, start=1):
-        c = h["chunk"]
-        blocks.append(
-            f'<zrodlo numer="{i}" dokument="{html.escape(c.document.title)}" strona="{c.page}" '
-            f'rozdzial="{html.escape(c.chapter)}">\n{html.escape(c.text, quote=False)}\n</zrodlo>'
-        )
-    user = (
-        f"<pytanie>\n{html.escape(question, quote=False)}\n</pytanie>\n\n"
-        f"<zrodla>\n" + "\n".join(blocks) + "\n</zrodla>"
+def _source_block(number, chunk):
+    return (
+        f'<zrodlo numer="{number}" dokument="{html.escape(chunk.document.title)}" strona="{chunk.page}" '
+        f'rozdzial="{html.escape(chunk.chapter)}">\n{html.escape(chunk.text, quote=False)}\n</zrodlo>'
     )
-    return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}]
+
+
+def build_messages(question, hits):
+    sources = "\n".join(_source_block(number, hit["chunk"]) for number, hit in enumerate(hits, start=1))
+    user_prompt = (
+        f"<pytanie>\n{html.escape(question, quote=False)}\n</pytanie>\n\n"
+        f"<zrodla>\n{sources}\n</zrodla>"
+    )
+    return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}]
 
 
 def retrieve(question):
     """Zwraca trafienia powyżej progu: [{chunk, score}]."""
-    emb = llm.embed([question])
-    found = vectorstore.query(emb.vectors[0], settings.TOP_K)
-    found = [(cid, s) for cid, s in found if s >= settings.SIMILARITY_THRESHOLD]
-    chunks = {c.chroma_id: c for c in DocumentChunk.objects.filter(chroma_id__in=[c for c, _ in found]).select_related("document")}
-    return [{"chunk": chunks[cid], "score": s} for cid, s in found if cid in chunks]
-
-
-def _sources(citations):
-    return [
-        {"document_title": c.document.title, "page": c.page, "chapter": c.chapter, "excerpt": c.excerpt}
-        for c in citations
+    embedding = llm.embed([question])[0]
+    matches = [
+        (chroma_id, score)
+        for chroma_id, score in vectorstore.query(embedding, settings.TOP_K)
+        if score >= settings.SIMILARITY_THRESHOLD
     ]
+    chunks = DocumentChunk.objects.select_related("document").in_bulk(
+        [chroma_id for chroma_id, _ in matches], field_name="chroma_id"
+    )
+    return [{"chunk": chunks[chroma_id], "score": score} for chroma_id, score in matches if chroma_id in chunks]
 
 
-def _save_assistant(conv, content, status, hits, log_kwargs):
+def _get_or_create_conversation(user, question, conversation_id):
+    if conversation_id:
+        conversation = Conversation.objects.filter(id=conversation_id, user=user).first()
+        if conversation:
+            return conversation
+    return Conversation.objects.create(user=user, title=question[:TITLE_LENGTH])
+
+
+def _generate_answer(question):
+    """Zwraca (treść, status, trafienia, pola logu). Nie zapisuje niczego w bazie."""
+    model = settings.EMBEDDING_MODEL
+    try:
+        hits = retrieve(question)
+        if not hits:  # model czatu nie jest wołany
+            return REFUSAL_TEXT, AnswerStatus.REFUSED, [], {"model": "", "status": QueryStatus.REFUSED}
+        model = settings.CHAT_MODEL
+        result = llm.chat(build_messages(question, hits))
+    except llm.LLMError:
+        return ERROR_TEXT, AnswerStatus.ERROR, [], {"model": model, "status": QueryStatus.API_ERROR}
+
+    log_fields = {
+        "model": result.model,
+        "tokens_in": result.tokens_in,
+        "tokens_out": result.tokens_out,
+        "status": QueryStatus.SUCCESS,
+    }
+    return result.text, AnswerStatus.ANSWERED, hits, log_fields
+
+
+@transaction.atomic
+def _save_answer(conversation, content, status, hits, log_fields):
     """Wiadomość asystenta + cytaty + log w JEDNEJ transakcji: nie ma odpowiedzi bez źródeł ani odwrotnie."""
-    with transaction.atomic():
-        msg = Message.objects.create(conversation=conv, role=MessageRole.ASSISTANT, content=content, status=status)
-        cites = [
-            Citation.objects.create(
-                message=msg, document=h["chunk"].document, chunk=h["chunk"], position=i,
-                page=h["chunk"].page, chapter=h["chunk"].chapter,
-                excerpt=h["chunk"].text[:EXCERPT_LEN], score=h["score"],
-            )
-            for i, h in enumerate(hits, start=1)
-        ]
-        QueryLog.objects.create(conversation=conv, message=msg, **log_kwargs)
-    return msg, cites
+    message = Message.objects.create(
+        conversation=conversation, role=MessageRole.ASSISTANT, content=content, status=status
+    )
+    citations = [
+        Citation.objects.create(
+            message=message,
+            document=hit["chunk"].document,
+            chunk=hit["chunk"],
+            position=position,
+            page=hit["chunk"].page,
+            chapter=hit["chunk"].chapter,
+            excerpt=hit["chunk"].text[:EXCERPT_LENGTH],
+            score=hit["score"],
+        )
+        for position, hit in enumerate(hits, start=1)
+    ]
+    QueryLog.objects.create(conversation=conversation, message=message, **log_fields)
+    return message, citations
 
 
 def ask(user, question, conversation_id=None):
     started = time.monotonic()
-    ms = lambda: int((time.monotonic() - started) * 1000)
+    conversation = _get_or_create_conversation(user, question, conversation_id)
+    Message.objects.create(conversation=conversation, role=MessageRole.USER, content=question)
 
-    conv = None
-    if conversation_id:
-        conv = Conversation.objects.filter(id=conversation_id, user=user).first()
-    if conv is None:
-        conv = Conversation.objects.create(user=user, title=question[:80])
-    Message.objects.create(conversation=conv, role=MessageRole.USER, content=question)
+    content, status, hits, log_fields = _generate_answer(question)
+    log_fields["latency_ms"] = int((time.monotonic() - started) * 1000)
+    message, citations = _save_answer(conversation, content, status, hits, log_fields)
 
-    def respond(msg, cites):
-        return {"message_id": str(msg.id), "conversation_id": str(conv.id), "status": msg.status,
-                "answer": msg.content, "sources": _sources(cites)}
-
-    try:
-        hits = retrieve(question)
-    except llm.LLMError:
-        msg, c = _save_assistant(conv, ERROR_TEXT, AnswerStatus.ERROR, [],
-                                 dict(model=settings.EMBEDDING_MODEL, latency_ms=ms(), status=QueryStatus.API_ERROR))
-        return respond(msg, c)
-
-    if not hits:  # no model call at all
-        msg, c = _save_assistant(conv, REFUSAL_TEXT, AnswerStatus.REFUSED, [],
-                                 dict(model="", latency_ms=ms(), status=QueryStatus.REFUSED))
-        return respond(msg, c)
-
-    try:
-        result = llm.chat(build_messages(question, hits))
-    except llm.LLMError:
-        msg, c = _save_assistant(conv, ERROR_TEXT, AnswerStatus.ERROR, [],
-                                 dict(model=settings.CHAT_MODEL, latency_ms=ms(), status=QueryStatus.API_ERROR))
-        return respond(msg, c)
-
-    msg, c = _save_assistant(conv, result.text, AnswerStatus.ANSWERED, hits,
-                             dict(model=result.model, tokens_in=result.tokens_in, tokens_out=result.tokens_out,
-                                  latency_ms=ms(), status=QueryStatus.SUCCESS))
-    return respond(msg, c)
+    return {
+        "message_id": str(message.id),
+        "conversation_id": str(conversation.id),
+        "status": message.status,
+        "answer": message.content,
+        "sources": [
+            {"document_title": c.document.title, "page": c.page, "chapter": c.chapter, "excerpt": c.excerpt}
+            for c in citations
+        ],
+    }

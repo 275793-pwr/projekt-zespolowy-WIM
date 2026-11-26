@@ -5,17 +5,32 @@ import Chat from "./Chat.jsx";
 import Upload from "./Upload.jsx";
 
 export default function App() {
-  const [role, setRole] = useState(session.token ? localStorage.getItem("role") : null);
-  const logout = () => { session.clear(); setRole(null); };
-  useEffect(() => setUnauthorizedHandler(logout), []);
-  useEffect(() => { if (session.token) api("/me/").then((m) => setRole(m.role)).catch(() => {}); }, []);
+  const [role, setRole] = useState(session.token ? session.role : null);
+  const isAdmin = role === "corpus_admin";
 
-  if (!role) return <Login onLogin={(d) => { session.set(d); setRole(d.role); }} />;
+  const login = (data) => {
+    session.set(data);
+    setRole(data.role);
+  };
+  const logout = () => {
+    session.clear();
+    setRole(null);
+  };
+
+  useEffect(() => { setUnauthorizedHandler(logout); }, []);
+  useEffect(() => {
+    if (session.token) api("/me/").then((me) => setRole(me.role)).catch(() => {});
+  }, []);
+
+  if (!role) return <Login onLogin={login} />;
   return (
     <div className="app">
-      <header><b>Asystent RAG do dokumentów uczelnianych</b><span>{role === "corpus_admin" ? "Administrator korpusu" : "Student"}</span>
-        <button onClick={logout}>Wyloguj</button></header>
-      {role === "corpus_admin" && <Upload />}
+      <header>
+        <b>Asystent RAG do dokumentów uczelnianych</b>
+        <span>{isAdmin ? "Administrator korpusu" : "Student"}</span>
+        <button onClick={logout}>Wyloguj</button>
+      </header>
+      {isAdmin && <Upload />}
       <Chat />
     </div>
   );

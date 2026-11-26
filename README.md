@@ -31,12 +31,6 @@ Tworzone automatycznie przy pierwszym uruchomieniu (gdy baza nie ma jeszcze uży
 
 To konta wyłącznie testowe, nie używaj ich na środowisku produkcyjnym.
 
-## Testy
-
-```
-docker compose run --rm backend pytest -q
-```
-
 ## Role
 
 - **Student** – zadaje pytania.

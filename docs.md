@@ -44,7 +44,6 @@ backend/
   documents/    Document, DocumentChunk, chunking.py, indexing.py, vectorstore.py, upload API
   chat/         Conversation, Message, Citation, MessageFeedback, QueryLog, rag.py, /api/ask/
   llm/client.py JEDYNY moduł wołający API modelu (czat + embeddingi, retry, timeout)
-  tests/        pytest z atrapą modelu
   eval/         przykładowy PDF + 10 pytań testowych do doboru progu
 ```
 
@@ -323,26 +322,7 @@ flowchart TD
 7. Pytanie „Jaka jest stolica Francji?” kończy się odmową bez wywołania modelu, a wiersz w `query_logs` ma status `refused`.
 8. Gdy dostawca przestaje odpowiadać, po 3 próbach student widzi komunikat o błędzie, a w `query_logs` jest `api_error`.
 
-## 12. Testy
-
-`pytest` z atrapą modelu (`tests/conftest.py`: embeddingi z haszowanego „worka słów”, czat zwracający stały tekst), więc testy nie zużywają tokenów. Pokrywają m.in.:
-
-| Obszar | Test |
-|---|---|
-| role | student nie wgra PDF (403), anonim nie zapyta (401) |
-| walidacja PDF | nie-PDF, limit rozmiaru, skan bez tekstu → `failed` z powodem |
-| fragmenty | każdy ma stronę i indeks, mieści się w jednej stronie, ≤ 1000 znaków |
-| cytaty | wycinki źródeł są w prompcie wysłanym do modelu |
-| odmowa | pytanie spoza dokumentów → `refused`, model niewywołany |
-| prompt injection | wstrzyknięty `</pytanie>` jest zescape'owany |
-| niezawodność | timeout → 3 próby → `error` (nie 500); 429/503 → ponowienie → sukces; 401 → bez ponowień |
-| embeddingi | 25 tekstów przy paczce 10 → 3 żądania |
-| atomowość | awaria przy drugim cytacie → brak wiadomości i cytatów |
-| baza | 9 tabel istnieje, migracje kompletne (`makemigrations --check`) |
-
-Uruchomienie: `docker compose run --rm backend pytest -q`.
-
-## 13. Planowane rozszerzenia (miejsca zaczepienia)
+## 12. Planowane rozszerzenia (miejsca zaczepienia)
 
 | Funkcja | Gdzie dopinamy |
 |---|---|
