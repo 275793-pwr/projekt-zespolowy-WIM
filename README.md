@@ -8,6 +8,13 @@ Szczegóły działania: [docs.md](docs.md).
 
 Django + DRF, PostgreSQL, Chroma (baza wektorowa), React (Vite), nginx, OpenRouter (czat i embeddingi).
 
+## Modele
+
+- Embeddingi (obecnie używany): `nvidia/nemotron-3-embed-1b:free`.
+
+  **Uwaga:** model został wycofany 2026-11-23 (HTTP 410). Zamiennik: `nvidia/nemotron-3.5-embed-1b:free`.
+- Czat (domyślny): `nvidia/nemotron-3-ultra-550b-a55b:free`.
+
 ## Uruchomienie
 
 1. Skopiuj konfigurację i wpisz swój klucz API:
