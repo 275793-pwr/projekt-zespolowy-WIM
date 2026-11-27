@@ -31,7 +31,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$DEPLOY_PATH"
-          cp -a "$GITHUB_WORKSPACE"/. "$DEPLOY_PATH"/
+          # Bez .git: jego pliki są tylko do odczytu i kolejna kopia kończy się "Permission denied".
+          tar -C "$GITHUB_WORKSPACE" --exclude=./.git -cf - . | tar -C "$DEPLOY_PATH" -xf -
 
       # 3. Generuje .env w DEPLOY_PATH. Sekrety GitHuba: API_KEY i EMBEDDING_MODEL.
       #    DJANGO_SECRET_KEY i POSTGRES_PASSWORD są zachowywane z poprzedniego .env
